@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	c "github.com/squirrely/shikago/components"
+	c "github.com/squirrely/shika-go/components"
 )
 
 func main() {

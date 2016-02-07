@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	s "strings"
 
-	l "github.com/squirrely/shikago/logging"
+	l "github.com/squirrely/shika-go/logging"
 )
 
 var log = l.NewLogger("Node")

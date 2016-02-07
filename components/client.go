@@ -2,12 +2,11 @@ package components
 
 // Client This is responsible for contacting a node. It is also responsible for
 // dealing with the writes in such a way that they are "fair"
-// type Client struct {
-// 	name        string
-// 	strategyMap map[string]RoutingStrategy
-// 	node        *Node
-// 	Listener    chan Message
-// }
+type Client struct {
+	name string
+	node *Node
+}
+
 //
 // // Producer todo
 // type Producer struct {

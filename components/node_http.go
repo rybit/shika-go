@@ -3,6 +3,7 @@ package components
 import (
 	"fmt"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -10,7 +11,24 @@ import (
 
 var partitionsRegex = regexp.MustCompile("/partition/([0-9a-zA-Z_\\-\\.]+)/([0-9a-zA-Z]+)$")
 
-func (n Node) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (node *Node) startServer(port int) {
+	// create a http listener, do it this way to get the running port
+	addrStr := fmt.Sprintf(":%d", port)
+	listener, err := net.Listen("tcp", addrStr)
+	if err != nil {
+		log.Err("Failed to create listener at address %s", addrStr, err)
+	}
+
+	node.port = listener.Addr().(*net.TCPAddr).Port
+	node.server = http.Server{
+		Handler: node,
+	}
+
+	log.Info("Node is starting to listen on port: %d", node.port)
+	go node.server.Serve(listener)
+}
+
+func (node Node) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if "POST" != r.Method { // TODO make this accept only posts
 		failRequest(w, "Invalid request for method")
 		return
@@ -36,7 +54,7 @@ func (n Node) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Debug("Pushing data to partition: %s/%s", topic, partID)
 
 	// now we should try and discover the topic - don't load anything we don't alreay have
-	parts, exists := n.partitions[topic]
+	parts, exists := node.partitions[topic]
 	if !exists {
 		failRequest(w, "The topic %s does not exist on this node", topic)
 		return
