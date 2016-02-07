@@ -1,0 +1,5 @@
+{
+  "default_partition_count": 2,
+  "node_port": 9111,
+  "data_directory": "/tmp/shikago"
+}

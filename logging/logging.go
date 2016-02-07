@@ -97,11 +97,14 @@ func (logger Logger) Warn(format string, args ...interface{}) {
 
 // Err -- print at level
 func (logger Logger) Err(format string, args ...interface{}) {
+	if _, ok := args[len(args)-1].(error); ok {
+		format += ", error: %v"
+	}
 	withLevel(logger, ERROR, format, args)
 }
 
 func withLevel(logger Logger, level LogLevel, format string, args []interface{}) {
-	if logger.currentLevel < level {
+	if logger.currentLevel <= level {
 		var errStr string
 		var l *log.Logger
 		switch level {
@@ -122,7 +125,7 @@ func withLevel(logger Logger, level LogLevel, format string, args []interface{})
 			l = logger.errorHandler
 		}
 
-		fmtToUse := errStr + ":" + logger.name + ":" + format + "\n"
+		fmtToUse := errStr + ": " + logger.name + ": " + format + "\n"
 		l.Printf(fmtToUse, args...)
 	}
 }

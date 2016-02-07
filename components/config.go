@@ -6,9 +6,9 @@ import (
 
 // Configuration a container for the possible config values
 type Configuration struct {
-	DefaultPartitionSize int32  `json:"default_partition_size"`
-	DataDirectory        string `json:"data_directory"`
-	NodePort             int    `json:"node_port"`
+	DefaultPartitionCount int32  `json:"default_partition_count"`
+	DataDirectory         string `json:"data_directory"`
+	NodePort              int    `json:"node_port"`
 	// TODO define routing startegies????
 }
 

@@ -135,7 +135,7 @@ func (n *Node) getPartitionsFor(topic string) []partition {
 	log.Info("The topic %s is new -- creating it locally", topic)
 
 	// TODO fetch!!! - for now, we will just make it all local
-	parts = make([]partition, n.config.DefaultPartitionSize)
+	parts = make([]partition, n.config.DefaultPartitionCount)
 	for i := range parts {
 		partName := fmt.Sprintf("%s_%d.jsonl", topic, i)
 		partName = s.ToLower(s.TrimSpace(s.Replace(partName, " ", "_", -1)))

@@ -1,60 +1,82 @@
 package main
 
 import (
+	"bufio"
+	"encoding/json"
 	"fmt"
-	"sync"
+	"io/ioutil"
+	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	c "github.com/squirrely/shikago/components"
 )
 
-// TOPIC ==> junk
-const TOPIC = "junk-topic"
-
 func main() {
-	config := c.Configuration{
-		DefaultPartitionSize: 2,
-		DataDirectory:        "/tmp/shikago",
-		NodePort:             9090,
+	if len(os.Args) != 3 {
+		fmt.Printf("usage: %s <topic name> <config file>\n", os.Args[0])
+		os.Exit(1)
 	}
+	fileBytes, err := ioutil.ReadFile(os.Args[2])
+	if err != nil {
+		fmt.Println("Failed to read in file", os.Args[2])
+		panic(err)
+	}
+
+	var config c.Configuration
+	err = json.Unmarshal(fileBytes, &config)
+	if err != nil {
+		fmt.Println("Failed to unmarshal file", os.Args[2])
+		panic(err)
+	}
+
+	topic := os.Args[1]
 
 	node := c.NewNode(&config)
 	defer node.Shutdown()
-	incoming1 := node.Subscribe(TOPIC)
-	incoming2 := node.Subscribe(TOPIC)
-	all := node.SubscribeToAll(TOPIC)
 
-	go consume("first consumer", incoming1)
-	go consume("second consumer", incoming2)
+	all := node.SubscribeToAll(topic)
+
 	go consume("all consumer", all)
 
-	wg := sync.WaitGroup{}
-	wg.Add(2)
+	// b/c we know how it hands out the conusmers to the one with the lowest number of
+	// consumers, we can reliably know that this will cause a consumer per partition
+	for i := 0; int32(i) < config.DefaultPartitionCount; i++ {
+		incoming := node.Subscribe(topic)
+		consumerName := "consumer-" + strconv.Itoa(i)
 
-	// TODO make it so you can write to it
-	go write(&wg, node, "s1", 10)
-	go write(&wg, node, "s2", 10)
+		go consume(consumerName, incoming)
+	}
 
-	wg.Wait()
-	fmt.Println("Finished writing - long wait time")
-
-	time.Sleep(100000000 * time.Second)
+	reader := bufio.NewReader(os.Stdin)
+	for {
+		time.Sleep(10 * time.Millisecond)
+		fmt.Print("Write to partition: ")
+		text, err := reader.ReadString('\n')
+		if err != nil {
+			panic(err)
+		}
+		text = strings.TrimSpace(text)
+		node.Write(topic, text)
+	}
 }
 
 func consume(id string, incoming <-chan c.Message) {
-	fmt.Println("Starting to consume -", id)
+	fmt.Println("Starting", id)
 	for msg := range incoming {
 		fmt.Printf("%s - msg %d: %s\n", id, msg.ID, msg.Payload)
 	}
 }
 
-func write(wg *sync.WaitGroup, node *c.Node, senderID string, max int) {
-	fmt.Println("Starting to produce: " + senderID)
-
-	for i := 0; i < max; i++ {
-		payload := fmt.Sprintf("sender %s:%d", senderID, i)
-		node.Write(TOPIC, payload)
-	}
-
-	wg.Done()
-}
+//
+// func write(wg *sync.WaitGroup, node *c.Node, senderID string, max int) {
+// 	fmt.Println("Starting to produce: " + senderID)
+//
+// 	for i := 0; i < max; i++ {
+// 		payload := fmt.Sprintf("sender %s:%d", senderID, i)
+// 		node.Write(TOPIC, payload)
+// 	}
+//
+// 	wg.Done()
+// }
