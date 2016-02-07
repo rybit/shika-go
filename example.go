@@ -8,35 +8,44 @@ import (
 )
 
 func main() {
-	incoming := make(chan c.Message)
+	incoming1 := make(chan c.Message)
+	incoming2 := make(chan c.Message)
+	incoming3 := make(chan c.Message)
 
-	part, err := c.NewLocalPartition("/tmp/shikago-test.jsonl")
+	topic, err := c.NewTopic("/tmp/shikago", "test-data", 2)
 	if err != nil {
 		panic(err)
 	}
-	defer part.Close()
-	part.Subscribe(incoming)
+	defer topic.Close()
 
-	go func() {
-		fmt.Println("Starting to consume")
-		for msg := range incoming {
-			fmt.Printf("%d: %s\n", msg.Id, msg.Payload)
-		}
-	}()
+	topic.Subscribe(incoming1)
+	topic.Subscribe(incoming2)
+	topic.SubscribeToAll(incoming3)
+
+	go consume("01", incoming1)
+	go consume("02", incoming2)
+	go consume("03", incoming3)
 
 	wg := sync.WaitGroup{}
 	wg.Add(2)
-	go write(part, &wg, "s1", 40)
-	go write(part, &wg, "s2", 50)
+	go write(topic, &wg, "s1", 10)
+	go write(topic, &wg, "s2", 5)
 
 	wg.Wait()
 	fmt.Println("Finished writing")
 }
 
-func write(part c.Partition, wg *sync.WaitGroup, senderID string, max int) {
+func consume(id string, incoming chan c.Message) {
+	fmt.Println("Starting to consume - ", id)
+	for msg := range incoming {
+		fmt.Printf("consumer %s - %d: %s\n", id, msg.ID, msg.Payload)
+	}
+}
+
+func write(topic *c.Topic, wg *sync.WaitGroup, senderID string, max int) {
 	fmt.Println("Starting to produce: " + senderID)
 	for i := 0; i < max; i++ {
-		part.Write(fmt.Sprintf("%s -- %d", senderId, i))
+		topic.Write(fmt.Sprintf("sender %s -- %d", senderID, i))
 	}
 	wg.Done()
 }
