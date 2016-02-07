@@ -3,49 +3,55 @@ package main
 import (
 	"fmt"
 	"sync"
+	"time"
 
 	c "github.com/squirrely/shikago/components"
 )
 
+// TOPIC ==> junk
+const TOPIC = "junk-topic"
+
 func main() {
-	incoming1 := make(chan c.Message)
-	incoming2 := make(chan c.Message)
-	incoming3 := make(chan c.Message)
-
-	topic, err := c.NewTopic("/tmp/shikago", "test-data", 2)
-	if err != nil {
-		panic(err)
+	config := c.Configuration{
+		DefaultPartitionSize: 2,
+		DataDirectory:        "/tmp/shikago",
 	}
-	defer topic.Close()
 
-	topic.Subscribe(incoming1)
-	topic.Subscribe(incoming2)
-	topic.SubscribeToAll(incoming3)
+	node := c.NewNode(&config)
+	incoming1 := node.Subscribe(TOPIC)
+	incoming2 := node.Subscribe(TOPIC)
+	all := node.SubscribeToAll(TOPIC)
 
-	go consume("01", incoming1)
-	go consume("02", incoming2)
-	go consume("03", incoming3)
+	go consume("first consumer", incoming1)
+	go consume("second consumer", incoming2)
+	go consume("all consumer", all)
 
 	wg := sync.WaitGroup{}
 	wg.Add(2)
-	go write(topic, &wg, "s1", 10)
-	go write(topic, &wg, "s2", 5)
+
+	go write(&wg, node, "s1", 10)
+	go write(&wg, node, "s2", 10)
 
 	wg.Wait()
 	fmt.Println("Finished writing")
+
+	time.Sleep(time.Second * 2)
 }
 
-func consume(id string, incoming chan c.Message) {
-	fmt.Println("Starting to consume - ", id)
+func consume(id string, incoming <-chan c.Message) {
+	fmt.Println("Starting to consume -", id)
 	for msg := range incoming {
-		fmt.Printf("consumer %s - %d: %s\n", id, msg.ID, msg.Payload)
+		fmt.Printf("%s - msg %d: %s\n", id, msg.ID, msg.Payload)
 	}
 }
 
-func write(topic *c.Topic, wg *sync.WaitGroup, senderID string, max int) {
+func write(wg *sync.WaitGroup, node *c.Node, senderID string, max int) {
 	fmt.Println("Starting to produce: " + senderID)
+
 	for i := 0; i < max; i++ {
-		topic.Write(fmt.Sprintf("sender %s -- %d", senderID, i))
+		payload := fmt.Sprintf("sender %s:%d", senderID, i)
+		node.Write(TOPIC, payload)
 	}
+
 	wg.Done()
 }

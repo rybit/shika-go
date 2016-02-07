@@ -13,9 +13,9 @@ type roundRobinStrategy struct {
 }
 
 // NewRoundRobinStrategy creates a strategy that will just cycle through partitions
-func NewRoundRobinStrategy(partitionCount int32) RoutingStrategy {
+func NewRoundRobinStrategy(partitionCount int) RoutingStrategy {
 	rr := new(roundRobinStrategy)
-	rr.howManyPartitions = partitionCount
+	rr.howManyPartitions = int32(partitionCount)
 
 	return rr
 }
