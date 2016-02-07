@@ -2,19 +2,28 @@ package components
 
 import (
 	"fmt"
-	"log"
+	"net"
+	"net/http"
 	"path/filepath"
 	s "strings"
+
+	l "github.com/squirrely/shikago/logging"
 )
+
+var log = l.NewLogger("Node")
 
 // Node is the primary communication endpoint for shikago. Writes and reads are done against
 // a node. The will request keep a list of the local topic/paritions that manages. It is also
 // responsible for creating new Topics and paritions.
 // It will manage the local server that will bind ports for the local partition
 type Node struct {
-	config      *Configuration
+	config *Configuration
+
+	// TODO always sanitize the topic name - lowercase it
 	partitions  map[string][]partition
 	strategyMap map[string]RoutingStrategy
+	server      http.Server
+	port        int
 }
 
 // NewNode creates a new node base around this configuration
@@ -25,19 +34,34 @@ func NewNode(config *Configuration) *Node {
 	node.partitions = make(map[string][]partition)
 	node.strategyMap = make(map[string]RoutingStrategy)
 
+	// create a http listener, do it this way to get the running port
+	addrStr := fmt.Sprintf(":%d", config.NodePort)
+	listener, err := net.Listen("tcp", addrStr)
+	if err != nil {
+		log.Err("Failed to create listener at address %s", addrStr, err)
+	}
+
+	node.port = listener.Addr().(*net.TCPAddr).Port
+	node.server = http.Server{
+		Handler: node,
+	}
+
+	log.Info("Node is starting to listen on port: %d", node.port)
+	go node.server.Serve(listener)
+
 	return node
 }
 
 // Shutdown does what is on the box
 func (n Node) Shutdown() {
-	log.Println("Starting shutdown", len(n.partitions), "partitions")
+	log.Info("Starting shutdown of %d partitions", len(n.partitions))
 	for _, parts := range n.partitions {
 		for _, part := range parts {
 			part.Close()
 		}
 	}
 
-	log.Println("Finished closing all the partitions")
+	log.Info("Finished closing all the partitions")
 }
 
 // Subscribe will create a channel that will be published to each time a change on ONE
@@ -51,6 +75,7 @@ func (n *Node) Subscribe(topic string) <-chan Message {
 		part = smallestOf(part, p)
 	}
 
+	log.Debug("Created subscriber for %s:%v", topic, part)
 	part.Subscribe(consumer)
 	return consumer
 }
@@ -67,12 +92,12 @@ func (n *Node) SubscribeToAll(topic string) <-chan Message {
 	return consumer
 }
 
-// RegisterStrategy TODO
+// RegisterStrategy allows a different RoutingStrategy to be specified for a given topic
 func (n *Node) RegisterStrategy(topic string, strategy RoutingStrategy) {
 	n.strategyMap[topic] = strategy
 }
 
-// Write TODO
+// Write write the payload to a parition in the topic based on the RoutingStrategy specified
 func (n *Node) Write(topic, payload string) error {
 	rs := n.getStrategyFor(topic)
 	partID := rs.WhichPartition(payload)
@@ -80,6 +105,10 @@ func (n *Node) Write(topic, payload string) error {
 	parts := n.getPartitionsFor(topic)
 	return parts[partID].Write(payload)
 }
+
+// -------------------------------------------------------------------------------------------------
+// Utilities
+// -------------------------------------------------------------------------------------------------
 
 func (n *Node) getStrategyFor(topic string) RoutingStrategy {
 	rs, exists := n.strategyMap[topic]
@@ -103,7 +132,7 @@ func (n *Node) getPartitionsFor(topic string) []partition {
 	}
 
 	// we haven't seen this before fetch it
-	log.Println("The topic", topic, "is new -- creating it locally")
+	log.Info("The topic %s is new -- creating it locally", topic)
 
 	// TODO fetch!!! - for now, we will just make it all local
 	parts = make([]partition, n.config.DefaultPartitionSize)
@@ -113,9 +142,10 @@ func (n *Node) getPartitionsFor(topic string) []partition {
 
 		lp, err := newLocalPartition(filepath.Join(n.config.DataDirectory, partName))
 		if err != nil {
-			log.Panicln("Failed to create partition ", i, " for topic ", topic, err)
+			log.Err("Failed to create partition %d for topic %s", i, topic, err)
 		}
-		log.Println("Created local partition", topic, partName)
+
+		log.Debug("Created local partition topic %s, %s", topic, partName)
 		parts[i] = lp
 	}
 
@@ -123,15 +153,6 @@ func (n *Node) getPartitionsFor(topic string) []partition {
 	return parts
 }
 
-func (n Node) writeToPartition(topic string, partID int32, payload string) error {
-	parts := n.getPartitionsFor(topic)
-
-	return parts[partID].Write(payload)
-}
-
-// -------------------------------------------------------------------------------------------------
-// Utilities
-// -------------------------------------------------------------------------------------------------
 func smallestOf(existing, possible partition) partition {
 	if existing == nil {
 		return possible

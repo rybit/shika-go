@@ -8,6 +8,7 @@ import (
 type Configuration struct {
 	DefaultPartitionSize int32  `json:"default_partition_size"`
 	DataDirectory        string `json:"data_directory"`
+	NodePort             int    `json:"node_port"`
 	// TODO define routing startegies????
 }
 

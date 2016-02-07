@@ -15,6 +15,7 @@ func main() {
 	config := c.Configuration{
 		DefaultPartitionSize: 2,
 		DataDirectory:        "/tmp/shikago",
+		NodePort:             9090,
 	}
 
 	node := c.NewNode(&config)
@@ -29,13 +30,14 @@ func main() {
 	wg := sync.WaitGroup{}
 	wg.Add(2)
 
+	// TODO make it so you can write to it
 	go write(&wg, node, "s1", 10)
 	go write(&wg, node, "s2", 10)
 
 	wg.Wait()
-	fmt.Println("Finished writing")
+	fmt.Println("Finished writing - long wait time")
 
-	time.Sleep(time.Second * 2)
+	time.Sleep(100000000 * time.Second)
 }
 
 func consume(id string, incoming <-chan c.Message) {
