@@ -140,7 +140,7 @@ func (n *Node) getPartitionsFor(topic string) []partition {
 		partName := fmt.Sprintf("%s_%d.jsonl", topic, i)
 		partName = s.ToLower(s.TrimSpace(s.Replace(partName, " ", "_", -1)))
 
-		lp, err := newLocalPartition(filepath.Join(n.config.DataDirectory, partName))
+		lp, err := newLocalPartition(filepath.Join(n.config.DataDirectory, partName), topic)
 		if err != nil {
 			log.Err("Failed to create partition %d for topic %s", i, topic, err)
 		}

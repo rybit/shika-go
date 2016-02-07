@@ -19,6 +19,7 @@ func main() {
 	}
 
 	node := c.NewNode(&config)
+	defer node.Shutdown()
 	incoming1 := node.Subscribe(TOPIC)
 	incoming2 := node.Subscribe(TOPIC)
 	all := node.SubscribeToAll(TOPIC)

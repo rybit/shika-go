@@ -5,6 +5,7 @@ import (
 	"os"
 	"sync"
 	"sync/atomic"
+	"time"
 )
 
 // Partition this is an actual data container. They can be proxies to a remote
@@ -47,37 +48,42 @@ func (rp remotePartition) Close() {
 // -------------------------------------------------------------------------------------------------
 
 type localPartition struct {
-	dataFile      *os.File
-	currentMsgID  uint64
-	listenerMutex *sync.Mutex
-	listeners     []chan Message
+	topicName    string
+	dataFile     *os.File
+	currentMsgID uint64
+	listeners    []chan Message
+
+	sync.Mutex
 }
 
-func newLocalPartition(filepath string) (partition, error) {
-	outputFile, err := os.Create(filepath)
+func newLocalPartition(filename string, topic string) (partition, error) {
+	// outputFile, err := os.OpenFile(filename, os.O_APPEND|os.O_WRONLY, 0600)
+	outputFile, err := os.Create(filename) // b/c we don't have a way to read from the file
 	if err != nil {
 		return nil, err
 	}
 
 	lp := new(localPartition)
 	lp.dataFile = outputFile
+	lp.topicName = topic
 
 	return lp, err
 }
 
-func (l localPartition) SubscribersCount() int {
+func (l *localPartition) SubscribersCount() int {
 	return len(l.listeners)
 }
 
-func (l localPartition) Close() {
+func (l *localPartition) Close() {
 	l.dataFile.Close()
 }
 
 func (l *localPartition) Write(payload string) error {
 	thisMsgID := atomic.AddUint64(&l.currentMsgID, 1)
 	m := Message{
-		ID:      thisMsgID,
-		Payload: payload,
+		ID:        thisMsgID,
+		Payload:   payload,
+		Timestamp: time.Now(),
 	}
 
 	// write it to file first
@@ -101,8 +107,8 @@ func (l *localPartition) Write(payload string) error {
 }
 
 func (l *localPartition) Subscribe(listener chan Message) {
-	// l.listenerMutex.Lock()
-	// defer l.listenerMutex.Unlock()
+	l.Lock()
+	defer l.Unlock()
 
 	l.listeners = append(l.listeners, listener)
 }
